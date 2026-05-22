@@ -880,9 +880,19 @@ def command_huawei_publish(args: argparse.Namespace) -> None:
     client = huawei_client(args)
     page = client.page("/html/bbsp/portmapping/portmappingnew.asp")
     token = extract_token(page)
-    port = normalize_port(args.port, "port")
+    
+    public_val = getattr(args, "public", None)
+    local_val = getattr(args, "local", None)
+    port_val = getattr(args, "port", None)
+    
+    if public_val is None and local_val is None and port_val is None:
+        port_val = 8090
+        
+    public_port = normalize_port(public_val or port_val, "public port")
+    local_port = normalize_port(local_val or port_val, "local port")
+    
     internal_ip = args.internal_ip
-    mapping_name = args.name or f"intelikroute-{port}"
+    mapping_name = args.name or f"intelikroute-{public_port}"
 
     existing_host_mapping = None
     for mapping in huawei_port_mappings(page):
@@ -892,10 +902,10 @@ def command_huawei_publish(args: argparse.Namespace) -> None:
         for port_entry in mapping.get("ports", []):
             if (
                 port_entry.get("protocol") in {"TCP", "TCP/UDP"}
-                and port_range_matches(port_entry.get("internal_port"), port)
-                and port_range_matches(port_entry.get("external_port"), port)
+                and port_range_matches(port_entry.get("internal_port"), local_port)
+                and port_range_matches(port_entry.get("external_port"), public_port)
             ):
-                print(f"Huawei route already exists: {port} -> {internal_ip}:{port}/TCP")
+                print(f"Huawei route already exists: {public_port} -> {internal_ip}:{local_port}/TCP")
                 return
 
     if existing_host_mapping:
@@ -912,15 +922,15 @@ def command_huawei_publish(args: argparse.Namespace) -> None:
             "x.RemoteHost": "",
             "x.X_HW_RemoteHostRange": "",
             "Add_aa.Protocol": "TCP",
-            "Add_aa.InternalPort": f"{port}:{port}",
-            "Add_aa.ExternalPort": f"{port}:{port}",
+            "Add_aa.InternalPort": f"{local_port}:{local_port}",
+            "Add_aa.ExternalPort": f"{public_port}:{public_port}",
             "Add_aa.ExternalSrcPort": "",
             "x.X_HW_Token": token,
         }
         result = client.post(url, data)
         if "error" in result.lower() and '"result": 0' not in result:
             raise CliError(f"Huawei publish failed: {result.strip()}")
-        print(f"Huawei route appended: {port} -> {internal_ip}:{port}/TCP")
+        print(f"Huawei route appended: {public_port} -> {internal_ip}:{local_port}/TCP")
         return
 
     interface = extract_wan_interface(page)
@@ -936,8 +946,8 @@ def command_huawei_publish(args: argparse.Namespace) -> None:
         "GROUP_a_x.RemoteHost": "",
         "GROUP_a_x.X_HW_RemoteHostRange": "",
         "GROUP_a_ya.Protocol": "TCP",
-        "GROUP_a_ya.InternalPort": f"{port}:{port}",
-        "GROUP_a_ya.ExternalPort": f"{port}:{port}",
+        "GROUP_a_ya.InternalPort": f"{local_port}:{local_port}",
+        "GROUP_a_ya.ExternalPort": f"{public_port}:{public_port}",
         "GROUP_a_ya.ExternalSrcPort": "",
         "x.X_HW_Token": token,
     }
@@ -945,7 +955,7 @@ def command_huawei_publish(args: argparse.Namespace) -> None:
     result = client.post(url, data)
     if "error" in result.lower() and '"result": 0' not in result:
         raise CliError(f"Huawei publish failed: {result.strip()}")
-    print(f"Huawei route created: {port} -> {internal_ip}:{port}/TCP")
+    print(f"Huawei route created: {public_port} -> {internal_ip}:{local_port}/TCP")
 
 
 def command_huawei_list(args: argparse.Namespace) -> None:
@@ -1024,22 +1034,33 @@ def command_huawei_remove(args: argparse.Namespace) -> None:
 
 
 def command_publish_public(args: argparse.Namespace) -> None:
+    public_val = getattr(args, "public", None)
+    local_val = getattr(args, "local", None)
+    port_val = getattr(args, "port", None)
+    
+    if public_val is None and local_val is None and port_val is None:
+        port_val = 8090
+        
+    public_port = normalize_port(public_val or port_val, "public port")
+    local_port = normalize_port(local_val or port_val, "local port")
+
     command_huawei_upnp(args)
     command_huawei_publish(args)
+    
     route = {
-        "name": args.name or f"intelikroute-{args.port}",
+        "name": args.name or f"intelikroute-{public_port}",
         "host": "auto",
-        "local_port": normalize_port(args.port, "port"),
-        "public_port": normalize_port(args.port, "port"),
+        "local_port": local_port,
+        "public_port": local_port,
         "protocol": "TCP",
         "lease": 0,
-        "description": f"{DEFAULT_DESC_PREFIX}:{args.name or f'intelikroute-{args.port}'}",
+        "description": f"{DEFAULT_DESC_PREFIX}:{args.name or f'intelikroute-{public_port}'}",
     }
     add_mapping(route)
-    print(f"Inner route ensured: {args.port} -> this Mac:{args.port}/TCP")
+    print(f"Inner route ensured: {local_port} -> this Host:{local_port}/TCP")
     internet_ip = public_ip()
     if internet_ip:
-        print(f"Public URL: http://{internet_ip}:{args.port}/")
+        print(f"Public URL: http://{internet_ip}:{public_port}/")
 
 
 def command_huawei_dns_list(args: argparse.Namespace) -> None:
@@ -1188,7 +1209,9 @@ def build_parser() -> argparse.ArgumentParser:
     huawei_publish.add_argument("--base-url", default=os.environ.get("HUAWEI_URL", HUAWEI_BASE_URL))
     huawei_publish.add_argument("--username", help="Huawei username. Can also use HUAWEI_USER.")
     huawei_publish.add_argument("--password", help="Huawei password. Can also use HUAWEI_PASS.")
-    huawei_publish.add_argument("--port", default=8090, type=int)
+    huawei_publish.add_argument("--port", type=int, help="Default port to use for both public and local if they are the same.")
+    huawei_publish.add_argument("--public", type=int, help="External public port.")
+    huawei_publish.add_argument("--local", type=int, help="Internal local port.")
     huawei_publish.add_argument("--internal-ip", default="192.168.18.56")
     huawei_publish.add_argument("--name")
     huawei_publish.set_defaults(func=command_huawei_publish)
@@ -1215,7 +1238,9 @@ def build_parser() -> argparse.ArgumentParser:
     publish_public.add_argument("--base-url", default=os.environ.get("HUAWEI_URL", HUAWEI_BASE_URL))
     publish_public.add_argument("--username", help="Huawei username. Can also use HUAWEI_USER.")
     publish_public.add_argument("--password", help="Huawei password. Can also use HUAWEI_PASS.")
-    publish_public.add_argument("--port", default=8090, type=int)
+    publish_public.add_argument("--port", type=int, help="Default port to use for both public and local if they are the same.")
+    publish_public.add_argument("--public", type=int, help="External public port.")
+    publish_public.add_argument("--local", type=int, help="Internal local port.")
     publish_public.add_argument("--internal-ip", default="192.168.18.56")
     publish_public.add_argument("--name")
     publish_public.set_defaults(func=command_publish_public, enabled=False)
