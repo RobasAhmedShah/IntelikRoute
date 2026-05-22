@@ -548,6 +548,10 @@ def default_gateway() -> str | None:
         proc = run(["route", "-n", "get", "default"], check=False)
         match = re.search(r"gateway:\s+(\S+)", proc.stdout)
         return match.group(1) if match else None
+    elif sys.platform == "win32":
+        proc = run(["route", "print", "0.0.0.0"], check=False)
+        match = re.search(r"0\.0\.0\.0\s+0\.0\.0\.0\s+(\S+)", proc.stdout)
+        return match.group(1) if match else None
 
     proc = run(["sh", "-c", "ip route show default 2>/dev/null"], check=False)
     match = re.search(r"default via\s+(\S+)", proc.stdout)
