@@ -1,15 +1,24 @@
 # IntelikRoute
 
-Command-line helper for managing local UPnP port forwards with `upnpc`.
+Command-line helper for managing local UPnP port forwards and Huawei ONT settings.
 
 For the full operator/agent runbook, see [SKILL.md](/Users/officeintelik/Documents/IntelikRoute/SKILL.md).
 
-Run the management dashboard:
+## Automated Installation
+
+IntelikRoute requires the system utility `miniupnpc` (specifically `upnpc`). We provide an automated installation script that detects your OS, installs the system tools, sets up the Python package, and configures your `PATH`:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+Once the installation completes, reload your shell configuration (`source ~/.zshrc`) and run:
 
 ```bash
 export HUAWEI_USER='Epuser'
 export HUAWEI_PASS='your-router-password'
-python3 intelikroute.py dashboard --port 5050
+intelikroute dashboard --port 5050
 ```
 
 Open:
@@ -55,38 +64,38 @@ The CLI can currently automate the UPnP router visible from the Mac, which is th
 Check the live topology:
 
 ```bash
-python3 intelikroute.py doctor
+intelikroute doctor
 ```
 
 List current UPnP mappings:
 
 ```bash
-python3 intelikroute.py list
+intelikroute list
 ```
 
 Add a route:
 
 ```bash
-python3 intelikroute.py add web --public 8080 --local 3000
+intelikroute add web --public 8080 --local 3000
 ```
 
 Remove a saved route:
 
 ```bash
-python3 intelikroute.py remove web
+intelikroute remove web
 ```
 
 Apply all saved routes from `routes.json`:
 
 ```bash
 cp routes.example.json routes.json
-python3 intelikroute.py apply
+intelikroute apply
 ```
 
 Verify saved routes:
 
 ```bash
-python3 intelikroute.py verify
+intelikroute verify
 ```
 
 ## Publish The Test Page Publicly
@@ -98,20 +107,20 @@ export HUAWEI_USER='Epuser'
 export HUAWEI_PASS='your-router-password'
 
 # Stop cameras/NVRs from auto-publishing ports on the Huawei.
-python3 intelikroute.py huawei-upnp --disable
+intelikroute huawei-upnp --disable
 
 # Ensure the Huawei forwards public 8090 to the TP-Link/C60 WAN IP.
-python3 intelikroute.py huawei-publish --port 8090 --internal-ip 192.168.18.56
+intelikroute huawei-publish --port 8090 --internal-ip 192.168.18.56
 
 # Ensure the TP-Link/C60 forwards 8090 to this Mac.
-python3 intelikroute.py add web-test --public 8090 --local 8090 --lease 0
+intelikroute add web-test --public 8090 --local 8090 --lease 0
 ```
 
 Or run the whole routing setup as one command:
 
 ```bash
 HUAWEI_USER='Epuser' HUAWEI_PASS='your-router-password' \
-  python3 intelikroute.py publish-public --port 8090 --internal-ip 192.168.18.56
+  intelikroute publish-public --port 8090 --internal-ip 192.168.18.56
 ```
 
 Then serve only the dedicated test folder:
