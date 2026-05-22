@@ -6,14 +6,24 @@ For the full operator/agent runbook, see [SKILL.md](/Users/officeintelik/Documen
 
 ## Automated Installation
 
-IntelikRoute requires the system utility `miniupnpc` (specifically `upnpc`). We provide an automated installation script that detects your OS, installs the system tools, sets up the Python package, and configures your `PATH`:
+IntelikRoute requires the system utility `miniupnpc` (specifically `upnpc`). We provide automated installation scripts for all platforms that download the system tool binaries, set up the Python package, and configure your system `PATH`:
 
+### macOS & Linux (Bash)
+Run the following in your terminal:
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
-Once the installation completes, reload your shell configuration (`source ~/.zshrc`) and run:
+### Windows (PowerShell)
+Open PowerShell in the project directory and run:
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force; .\setup.ps1
+```
+
+---
+
+Once the installation completes, restart your terminal window and run:
 
 ```bash
 export HUAWEI_USER='Epuser'
