@@ -25,6 +25,7 @@ from intelikroute import (
     huawei_dns_hosts,
     huawei_port_mappings,
     load_proxy_routes,
+    load_saved_credentials,
     local_ip_hint,
     public_ip,
 )
@@ -56,6 +57,8 @@ DEFAULT_PROXY_PORT = 8080
 def huawei_client_from_env() -> HuaweiClient | None:
     user = os.environ.get("HUAWEI_USER")
     password = os.environ.get("HUAWEI_PASS")
+    if not user or not password:
+        user, password = load_saved_credentials()
     if not user or not password:
         return None
     client = HuaweiClient(os.environ.get("HUAWEI_URL", HUAWEI_BASE_URL), user, password)
@@ -189,7 +192,7 @@ def dashboard_status() -> dict[str, Any]:
                 client.page("/html/bbsp/common/dnshostslist.asp")
             )
         else:
-            huawei["error"] = "Set HUAWEI_USER and HUAWEI_PASS before starting the dashboard."
+            huawei["error"] = "Huawei credentials not found. Run 'intelikroute auth' or set HUAWEI_USER/HUAWEI_PASS before starting the dashboard."
     except Exception as exc:
         huawei["error"] = str(exc)
 

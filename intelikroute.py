@@ -231,12 +231,94 @@ class HuaweiClient:
         return self.request(path, data=data)
 
 
+def get_credentials_path() -> Path:
+    return Path.home() / ".intelikroute" / "credentials.json"
+
+
+def load_saved_credentials() -> tuple[str | None, str | None]:
+    path = get_credentials_path()
+    if not path.exists():
+        return None, None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data.get("username"), data.get("password")
+    except Exception:
+        return None, None
+
+
+def save_credentials(username: str, password: str) -> None:
+    path = get_credentials_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        path.write_text(json.dumps({"username": username, "password": password}, indent=2), encoding="utf-8")
+        try:
+            path.chmod(0o600)
+        except Exception:
+            pass
+    except Exception as exc:
+        raise CliError(f"Failed to save credentials: {exc}")
+
+
 def huawei_credentials(args: argparse.Namespace) -> tuple[str, str]:
-    username = args.username or os.environ.get("HUAWEI_USER")
-    password = args.password or os.environ.get("HUAWEI_PASS")
+    username = getattr(args, "username", None) or os.environ.get("HUAWEI_USER")
+    password = getattr(args, "password", None) or os.environ.get("HUAWEI_PASS")
+    
     if not username or not password:
-        raise CliError("Set HUAWEI_USER and HUAWEI_PASS, or pass --username and --password.")
+        saved_user, saved_pass = load_saved_credentials()
+        if not username:
+            username = saved_user
+        if not password:
+            password = saved_pass
+
+    if not username or not password:
+        raise CliError(
+            "Huawei credentials are not configured. Set HUAWEI_USER and HUAWEI_PASS, "
+            "pass --username and --password, or run 'intelikroute auth' to save them."
+        )
     return username, password
+
+
+def command_auth(args: argparse.Namespace) -> None:
+    import getpass
+
+    print("--- IntelikRoute Router Authentication Setup ---")
+    default_user = "Epuser"
+    try:
+        user_input = input(f"Enter Huawei router username [{default_user}]: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nCancelled.")
+        return
+    username = user_input if user_input else default_user
+
+    try:
+        password = getpass.getpass("Enter Huawei router password: ")
+    except (KeyboardInterrupt, EOFError):
+        print("\nCancelled.")
+        return
+    if not password:
+        raise CliError("Password cannot be empty.")
+
+    base_url = args.base_url
+    print(f"Verifying credentials against router at {base_url}...")
+
+    try:
+        client = HuaweiClient(base_url, username, password)
+        client.login()
+        print("Login successful! Verification complete.")
+    except Exception as exc:
+        print(f"\nWARNING: Verification failed against {base_url}.")
+        print(f"Error: {exc}")
+        try:
+            confirm = input("Would you like to save these credentials anyway? (y/n): ").strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            print("\nCancelled.")
+            return
+        if confirm != 'y':
+            print("Credentials were not saved.")
+            return
+
+    save_credentials(username, password)
+    print("\nAuthentication successful and saved! You can now run commands without entering credentials.")
 
 
 def huawei_client(args: argparse.Namespace) -> HuaweiClient:
@@ -1140,6 +1222,10 @@ def build_parser() -> argparse.ArgumentParser:
     dns_remove.add_argument("--username", help="Huawei username. Can also use HUAWEI_USER.")
     dns_remove.add_argument("--password", help="Huawei password. Can also use HUAWEI_PASS.")
     dns_remove.set_defaults(func=command_huawei_dns_remove)
+
+    auth = subparsers.add_parser("auth", help="Interactive CLI setup to save router credentials securely.")
+    auth.add_argument("--base-url", default=os.environ.get("HUAWEI_URL", HUAWEI_BASE_URL), help="Huawei router base URL.")
+    auth.set_defaults(func=command_auth)
 
     proxy = subparsers.add_parser("proxy", help="Run the host-header reverse proxy.")
     proxy.add_argument("--proxy-config", default=str(DEFAULT_PROXY_CONFIG), help="Proxy route JSON file.")
