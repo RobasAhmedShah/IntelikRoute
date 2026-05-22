@@ -1,0 +1,22 @@
+{
+  "routes": [
+    {
+      "description": "intelikroute:web",
+      "host": "auto",
+      "lease": 0,
+      "local_port": 3000,
+      "name": "web",
+      "protocol": "TCP",
+      "public_port": 8080
+    },
+    {
+      "description": "intelikroute:api",
+      "host": "192.168.1.140",
+      "lease": 0,
+      "local_port": 8000,
+      "name": "api",
+      "protocol": "TCP",
+      "public_port": 8000
+    }
+  ]
+}
