@@ -421,7 +421,8 @@ def huawei_dns_hosts(page: str) -> list[dict[str, str]]:
     return hosts
 
 
-def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess[str]:
+    is_upnpc = cmd and cmd[0] == "upnpc"
     try:
         proc = subprocess.run(
             cmd,
@@ -434,6 +435,23 @@ def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[st
         raise CliError(f"Command not found: {cmd[0]}") from exc
     except subprocess.TimeoutExpired as exc:
         raise CliError(f"Timed out running: {' '.join(cmd)}") from exc
+
+    if is_upnpc and proc.returncode != 0 and "-i" not in cmd:
+        combined_output = proc.stdout + proc.stderr
+        if "not connected?" in combined_output or "No valid UPNP" in combined_output:
+            retry_cmd = [cmd[0], "-i"] + cmd[1:]
+            try:
+                retry_proc = subprocess.run(
+                    retry_cmd,
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                    timeout=UPNPC_TIMEOUT,
+                )
+                if retry_proc.returncode == 0 or "ExternalIPAddress" in (retry_proc.stdout + retry_proc.stderr):
+                    proc = retry_proc
+            except Exception:
+                pass
 
     if check and proc.returncode != 0:
         output = (proc.stdout + proc.stderr).strip()
