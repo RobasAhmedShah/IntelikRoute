@@ -24,11 +24,41 @@ from pathlib import Path
 from typing import Any
 
 
-DEFAULT_CONFIG = Path("routes.json")
+def _get_default_config() -> Path:
+    local_path = Path("routes.json")
+    if local_path.exists():
+        return local_path
+    home_dir = Path.home() / ".intelikroute"
+    home_dir.mkdir(parents=True, exist_ok=True)
+    home_path = home_dir / "routes.json"
+    if not home_path.exists():
+        try:
+            home_path.write_text('{\n  "routes": []\n}\n')
+        except Exception:
+            pass
+    return home_path
+
+
+def _get_default_proxy_config() -> Path:
+    local_path = Path("proxy-routes.json")
+    if local_path.exists():
+        return local_path
+    home_dir = Path.home() / ".intelikroute"
+    home_dir.mkdir(parents=True, exist_ok=True)
+    home_path = home_dir / "proxy-routes.json"
+    if not home_path.exists():
+        try:
+            home_path.write_text('{\n  "routes": {}\n}\n')
+        except Exception:
+            pass
+    return home_path
+
+
+DEFAULT_CONFIG = _get_default_config()
 DEFAULT_DESC_PREFIX = "intelikroute"
 UPNPC_TIMEOUT = 25
 HUAWEI_BASE_URL = "http://192.168.18.1"
-DEFAULT_PROXY_CONFIG = Path("proxy-routes.json")
+DEFAULT_PROXY_CONFIG = _get_default_proxy_config()
 HOP_BY_HOP_HEADERS = {
     "connection",
     "keep-alive",

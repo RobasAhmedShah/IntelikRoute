@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "intelikroute"
+version = "1.0.0"
+description = "Small CLI and dashboard for managing local UPnP port forwards with miniupnpc and Huawei router settings"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = []
+
+[tool.setuptools]
+py-modules = ["intelikroute", "intelik_dashboard", "intelik_proxy"]
+
+[project.scripts]
+intelikroute = "intelikroute:main"

@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -30,9 +31,25 @@ from intelikroute import (
 
 
 ROOT = Path(__file__).resolve().parent
-PROXY_CONFIG = ROOT / "proxy-routes.json"
-PROXY_PID = ROOT / ".intelikroute-proxy.pid"
-PROXY_LOG = ROOT / ".intelikroute-proxy.log"
+
+def _get_dashboard_paths() -> tuple[Path, Path, Path]:
+    # Check local first for backwards compatibility
+    local_config = Path("proxy-routes.json")
+    if local_config.exists():
+        return local_config, Path(".intelikroute-proxy.pid"), Path(".intelikroute-proxy.log")
+    
+    # Use user-specific configuration directory
+    home_dir = Path.home() / ".intelikroute"
+    home_dir.mkdir(parents=True, exist_ok=True)
+    home_config = home_dir / "proxy-routes.json"
+    if not home_config.exists():
+        try:
+            home_config.write_text('{\n  "routes": {}\n}\n')
+        except Exception:
+            pass
+    return home_config, home_dir / "proxy.pid", home_dir / "proxy.log"
+
+PROXY_CONFIG, PROXY_PID, PROXY_LOG = _get_dashboard_paths()
 DEFAULT_PROXY_PORT = 8080
 
 
@@ -48,9 +65,17 @@ def huawei_client_from_env() -> HuaweiClient | None:
 
 def run_cli(args: list[str]) -> tuple[int, str]:
     env = os.environ.copy()
+    local_script = ROOT / "intelikroute.py"
+    if local_script.exists():
+        cmd = [sys.executable, str(local_script)]
+        cwd = ROOT
+    else:
+        cmd = [sys.executable, "-m", "intelikroute"]
+        cwd = None
+
     proc = subprocess.run(
-        ["python3", str(ROOT / "intelikroute.py"), *args],
-        cwd=ROOT,
+        cmd + args,
+        cwd=cwd,
         env=env,
         text=True,
         capture_output=True,
@@ -86,10 +111,17 @@ def start_proxy_service(port: int = DEFAULT_PROXY_PORT) -> dict[str, Any]:
     if status["running"]:
         return status | {"message": "Proxy is already running."}
     log = PROXY_LOG.open("ab")
+
+    local_script = ROOT / "intelikroute.py"
+    if local_script.exists():
+        cmd = [sys.executable, str(local_script)]
+        cwd = ROOT
+    else:
+        cmd = [sys.executable, "-m", "intelikroute"]
+        cwd = None
+
     proc = subprocess.Popen(
-        [
-            "python3",
-            str(ROOT / "intelikroute.py"),
+        cmd + [
             "proxy",
             "--proxy-config",
             str(PROXY_CONFIG),
@@ -98,7 +130,7 @@ def start_proxy_service(port: int = DEFAULT_PROXY_PORT) -> dict[str, Any]:
             "--port",
             str(port),
         ],
-        cwd=ROOT,
+        cwd=cwd,
         env=os.environ.copy(),
         stdout=log,
         stderr=log,
